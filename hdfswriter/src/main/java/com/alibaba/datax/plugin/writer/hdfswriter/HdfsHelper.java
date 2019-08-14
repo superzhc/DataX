@@ -284,6 +284,7 @@ public  class HdfsHelper {
         char fieldDelimiter = config.getChar(Key.FIELD_DELIMITER);
         List<Configuration>  columns = config.getListConfiguration(Key.COLUMN);
         String compress = config.getString(Key.COMPRESS,null);
+        SpecialCharactersHelper specialCharactersHelper=new SpecialCharactersHelper(config.getList(Key.FIELDSPECIALCHARACTERS,String.class),config.getString(Key.FIELDSPECIALCHARACTERSMODE,"drop"));
 
         SimpleDateFormat dateFormat = new SimpleDateFormat("yyyyMMddHHmm");
         String attempt = "attempt_"+dateFormat.format(new Date())+"_0001_m_000000_0";
@@ -303,7 +304,7 @@ public  class HdfsHelper {
             RecordWriter writer = outFormat.getRecordWriter(fileSystem, conf, outputPath.toString(), Reporter.NULL);
             Record record = null;
             while ((record = lineReceiver.getFromReader()) != null) {
-                MutablePair<Text, Boolean> transportResult = transportOneRecord(record, fieldDelimiter, columns, taskPluginCollector);
+                MutablePair<Text, Boolean> transportResult = transportOneRecord(record, fieldDelimiter,specialCharactersHelper, columns, taskPluginCollector);
                 if (!transportResult.getRight()) {
                     writer.write(NullWritable.get(),transportResult.getLeft());
                 }
@@ -319,8 +320,8 @@ public  class HdfsHelper {
     }
 
     public static MutablePair<Text, Boolean> transportOneRecord(
-            Record record, char fieldDelimiter, List<Configuration> columnsConfiguration, TaskPluginCollector taskPluginCollector) {
-        MutablePair<List<Object>, Boolean> transportResultList =  transportOneRecord(record,columnsConfiguration,taskPluginCollector);
+            Record record, char fieldDelimiter,SpecialCharactersHelper specialCharactersHelper, List<Configuration> columnsConfiguration, TaskPluginCollector taskPluginCollector) {
+        MutablePair<List<Object>, Boolean> transportResultList =  transportOneRecord(record,specialCharactersHelper,columnsConfiguration,taskPluginCollector);
         //保存<转换后的数据,是否是脏数据>
         MutablePair<Text, Boolean> transportResult = new MutablePair<Text, Boolean>();
         transportResult.setRight(false);
@@ -363,6 +364,7 @@ public  class HdfsHelper {
                                   TaskPluginCollector taskPluginCollector){
         List<Configuration>  columns = config.getListConfiguration(Key.COLUMN);
         String compress = config.getString(Key.COMPRESS, null);
+        SpecialCharactersHelper specialCharactersHelper=new SpecialCharactersHelper(config.getList(Key.FIELDSPECIALCHARACTERS,String.class),config.getString(Key.FIELDSPECIALCHARACTERSMODE,"drop"));
         List<String> columnNames = getColumnNames(columns);
         List<ObjectInspector> columnTypeInspectors = getColumnTypeInspectors(columns);
         StructObjectInspector inspector = (StructObjectInspector)ObjectInspectorFactory
@@ -381,7 +383,7 @@ public  class HdfsHelper {
             RecordWriter writer = outFormat.getRecordWriter(fileSystem, conf, fileName, Reporter.NULL);
             Record record = null;
             while ((record = lineReceiver.getFromReader()) != null) {
-                MutablePair<List<Object>, Boolean> transportResult =  transportOneRecord(record,columns,taskPluginCollector);
+                MutablePair<List<Object>, Boolean> transportResult =  transportOneRecord(record,specialCharactersHelper,columns,taskPluginCollector);
                 if (!transportResult.getRight()) {
                     writer.write(NullWritable.get(), orcSerde.serialize(transportResult.getLeft(), inspector));
                 }
@@ -478,7 +480,7 @@ public  class HdfsHelper {
     }
 
     public static MutablePair<List<Object>, Boolean> transportOneRecord(
-            Record record,List<Configuration> columnsConfiguration,
+            Record record,SpecialCharactersHelper specialCharactersHelper,List<Configuration> columnsConfiguration,
             TaskPluginCollector taskPluginCollector){
 
         MutablePair<List<Object>, Boolean> transportResult = new MutablePair<List<Object>, Boolean>();
@@ -518,7 +520,8 @@ public  class HdfsHelper {
                             case STRING:
                             case VARCHAR:
                             case CHAR:
-                                recordList.add(column.asString());
+                                // 2019年8月13日 superz add 处理特殊字符
+                                recordList.add(specialCharactersHelper.deal(column.asString()));
                                 break;
                             case BOOLEAN:
                                 recordList.add(column.asBoolean());

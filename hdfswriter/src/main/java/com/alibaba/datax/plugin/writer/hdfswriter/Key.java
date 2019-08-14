@@ -33,4 +33,10 @@ public class Key {
     public static final String KERBEROS_PRINCIPAL = "kerberosPrincipal";
     // hadoop config
     public static final String HADOOP_CONFIG = "hadoopConfig";
+
+    // 2019年8月13日 superz 定义特殊字符和特殊字符的处理方式
+    // not must
+    public static final String FIELDSPECIALCHARACTERS="fieldSpecialCharacters";
+    // not must,default drop
+    public static final String FIELDSPECIALCHARACTERSMODE="fieldSpecialCharactersMode";
 }

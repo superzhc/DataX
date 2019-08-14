@@ -34,6 +34,10 @@ public class HdfsWriter extends Writer {
         private HashSet<String> tmpFiles = new HashSet<String>();//临时文件全路径
         private HashSet<String> endFiles = new HashSet<String>();//最终文件全路径
 
+        // 2019年8月13日 superz 添加特殊字符参数和特殊字符的处理方式
+        private List<String> fieldSpecialCharacters;// 定义特殊字符有哪些
+        private String fieldSpecialCharactersMode;// 特殊字符的处理模式，有两种 DROP 和 REPLACE
+
         private HdfsHelper hdfsHelper = null;
 
         @Override
@@ -55,6 +59,19 @@ public class HdfsWriter extends Writer {
                 String message = "HdfsWriter插件目前只支持ORC和TEXT两种格式的文件,请将filetype选项的值配置为ORC或者TEXT";
                 throw DataXException.asDataXException(HdfsWriterErrorCode.ILLEGAL_VALUE, message);
             }
+            
+            // 2019年8月13日 superz fieldSpecialCharacters check
+            this.fieldSpecialCharacters = this.writerSliceConfig.getList(Key.FIELDSPECIALCHARACTERS, String.class);
+            this.fieldSpecialCharactersMode = this.writerSliceConfig.getString(Key.FIELDSPECIALCHARACTERSMODE, "drop");// 默认的处理模式直接是删掉特殊字符
+            // 在配置了特殊字符后，需要验证特殊字符的处理模式；若未配置特殊字符，无需验证特殊字符的处理模式
+            if (null != fieldSpecialCharacters && fieldSpecialCharacters.size() > 0) {
+                if (!"drop".equalsIgnoreCase(fieldSpecialCharactersMode)
+                        && !"replace".equalsIgnoreCase(fieldSpecialCharactersMode)) {
+                    String message = "HdfsWriter插件对于特殊字符的处理只支持DROP（删除）和REPLACE（转义）两种方式，请将fieldSpecialCharactersMode选项的值配置成DROP或者REPLACE ";
+                    throw DataXException.asDataXException(HdfsWriterErrorCode.ILLEGAL_VALUE, message);
+                }
+            }
+            
             //path
             this.path = this.writerSliceConfig.getNecessaryValue(Key.PATH, HdfsWriterErrorCode.REQUIRED_VALUE);
             if(!path.startsWith("/")){
@@ -226,6 +243,11 @@ public class HdfsWriter extends Writer {
 
                 fullFileName = String.format("%s%s%s__%s", defaultFS, storePath, filePrefix, fileSuffix);
                 endFullFileName = String.format("%s%s%s__%s", defaultFS, endStorePath, filePrefix, fileSuffix);
+
+                // 2019年8月12日 superz 为了方便测试，先做个转换，将hive中的数据给删完了~~
+                filePrefix=fileSuffix.replace('\\','/');
+                fullFileName=fullFileName.replace('\\','/');
+                endFullFileName=endFullFileName.replace('\\','/');
 
                 while (allFiles.contains(endFullFileName)) {
                     fileSuffix = UUID.randomUUID().toString().replace('-', '_');
